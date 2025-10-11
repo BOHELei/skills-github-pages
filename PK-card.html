@@ -1,0 +1,1157 @@
+<html lang="zh-CN"><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>魔法卡牌对决 - 回合制卡牌游戏</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3B82F6',
+                        secondary: '#EF4444',
+                        neutral: '#1F2937',
+                        card: '#1E293B',
+                        cardHighlight: '#2563EB'
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .card-shadow {
+                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+            }
+            .card-hover {
+                transition: transform 0.2s, box-shadow 0.2s;
+            }
+            .card-hover:hover {
+                transform: translateY(-3px);
+                box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
+            }
+            .loading-spinner {
+                border-top-color: #3B82F6;
+                animation: spinner 0.6s linear infinite;
+            }
+            @keyframes spinner {
+                to { transform: rotate(360deg); }
+            }
+            .pulse {
+                animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+            }
+            @keyframes pulse {
+                0%, 100% { opacity: 1; }
+                50% { opacity: 0.7; }
+            }
+            .slide-in {
+                animation: slideIn 0.3s ease-out forwards;
+                animation: slideIn 0.3s ease-out forwards;
+            }
+            @keyframes slideIn {
+                from { transform: translateY(10px); opacity: 0; }
+                to { transform: translateY(0); opacity: 1; }
+            }
+            .damage {
+                animation: damage 0.5s ease-out forwards;
+            }
+            @keyframes damage {
+                0% { transform: scale(1); color: white; }
+                50% { transform: scale(1.3); color: #EF4444; }
+                100% { transform: scale(1); color: white; }
+            }
+            .card-image-container {
+                overflow: hidden;
+                border-radius: 4px;
+            }
+            .card-image {
+                transition: transform 0.3s ease;
+            }
+            .card-hover .card-image:hover {
+                transform: scale(1.05);
+            }
+            .attack-btn {
+                transition: all 0.2s;
+            }
+            .attack-btn:hover {
+                transform: scale(1.05);
+                box-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white min-h-screen">
+    <div class="container mx-auto p-4 max-w-6xl">
+        <header class="text-center mb-6 slide-in">
+            <h1 class="text-4xl font-bold text-primary mb-2 flex items-center justify-center">
+                <i class="fa fa-gamepad mr-3"></i>魔法卡牌对决
+            </h1>
+            <p id="game-status" class="text-xl text-gray-300">准备开始游戏...</p>
+        </header>
+        
+        <!-- 加载提示 -->
+        <div id="loading-indicator" class="hidden text-center my-6">
+            <div class="inline-flex items-center">
+                <div class="w-6 h-6 rounded-full border-2 border-gray-700 loading-spinner mr-2"></div>
+                <p class="text-gray-400">加载游戏数据中...</p>
+            </div>
+        </div>
+        
+        <div id="game-container" class="hidden">
+            <!-- 对手区域 -->
+            <div class="bg-neutral/50 rounded-lg p-4 mb-6 slide-in" style="animation-delay: 0.1s">
+                <div class="flex justify-between items-center mb-2">
+                    <h2 class="text-xl font-bold flex items-center">
+                        <i class="fa fa-user-o mr-2"></i>对手
+                    </h2>
+                    <div class="flex items-center space-x-6">
+                        <div class="flex items-center">
+                            <span class="mr-2">攻击: </span>
+                            <span id="opponent-attack" class="text-secondary font-bold">1</span>
+                            <span id="opponent-weapon-attack" class="text-secondary ml-1">
+                                <!-- 武器攻击加成会显示在这里 -->
+                            </span>
+                        </div>
+                        <div class="flex items-center">
+                            <span class="mr-2">生命值: </span>
+                            <div class="w-32 bg-gray-700 rounded-full h-2 overflow-hidden">
+                                <div id="opponent-health" class="bg-secondary h-2 rounded-full transition-all duration-300" style="width: 100%"></div>
+                            </div>
+                            <span id="opponent-health-text" class="ml-2 font-bold">30/30</span>
+                        </div>
+                        <div id="opponent-weapon" class="hidden items-center text-sm text-gray-300">
+                            <i class="fa fa-shield mr-1"></i>
+                            <span id="opponent-weapon-name"></span>
+                            <span class="ml-1">(<span id="opponent-weapon-durability"></span>)</span>
+                        </div>
+                    </div>
+                </div>
+                <div id="opponent-minions" class="flex gap-3 overflow-x-auto py-2 min-h-[180px]">
+                    <div class="text-gray-500 flex items-center">
+                        <i class="fa fa-meh-o mr-2"></i>对手场上暂无随从
+                    </div>
+                </div>
+                <div class="mt-3 text-right">
+                    <button id="opponent-attack-btn" class="hidden attack-btn bg-secondary/20 hover:bg-secondary/30 text-secondary text-sm rounded px-4 py-1">
+                        <i class="fa fa-crosshairs mr-1"></i>对手攻击中...
+                    </button>
+                </div>
+            </div>
+            
+            <!-- 游戏控制区域 -->
+            <div class="flex justify-center mb-6 slide-in" style="animation-delay: 0.2s">
+                <button id="player-attack-hero-btn" class="attack-btn bg-secondary/20 hover:bg-secondary/30 text-secondary font-bold py-2 px-4 rounded-lg transition flex items-center mr-4">
+                    <i class="fa fa-crosshairs mr-2"></i>攻击对手
+                </button>
+                <button id="end-turn-btn" class="bg-primary hover:bg-primary/80 text-white font-bold py-2 px-6 rounded-lg transition flex items-center">
+                    <i class="fa fa-forward mr-2"></i>结束回合
+                </button>
+            </div>
+            
+            <!-- 玩家区域 -->
+            <div class="bg-neutral/50 rounded-lg p-4 slide-in" style="animation-delay: 0.3s">
+                <div class="flex justify-between items-center mb-2">
+                    <h2 id="player-turn-indicator" class="text-xl font-bold flex items-center">
+                        <i class="fa fa-user mr-2"></i>你的回合
+                    </h2>
+                    <div class="flex items-center space-x-6">
+                        <div class="flex items-center">
+                            <span class="mr-2">攻击: </span>
+                            <span id="player-attack" class="text-primary font-bold">1</span>
+                            <span id="player-weapon-attack" class="text-primary ml-1">
+                                <!-- 武器攻击加成会显示在这里 -->
+                            </span>
+                        </div>
+                        <div class="flex items-center">
+                            <span class="mr-2">生命值: </span>
+                            <div class="w-32 bg-gray-700 rounded-full h-2 overflow-hidden">
+                                <div id="player-health" class="bg-primary h-2 rounded-full transition-all duration-300" style="width: 100%"></div>
+                            </div>
+                            <span id="player-health-text" class="ml-2 font-bold">30/30</span>
+                        </div>
+                        <div class="flex items-center">
+                            <span class="mr-2">法力: </span>
+                            <span id="player-mana" class="text-primary font-bold">2/2</span>
+                        </div>
+                        <div id="player-weapon" class="hidden items-center text-sm text-gray-300">
+                            <i class="fa fa-shield mr-1"></i>
+                            <span id="player-weapon-name"></span>
+                            <span class="ml-1">(<span id="player-weapon-durability"></span>)</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 玩家随从区域 -->
+                <div id="player-minions" class="flex gap-3 overflow-x-auto py-2 mb-4 min-h-[180px]">
+                    <div class="text-gray-500 flex items-center">
+                        <i class="fa fa-meh-o mr-2"></i>你的场上暂无随从
+                    </div>
+                </div>
+                
+                <!-- 玩家手牌区域 -->
+                <div>
+                    <h3 class="text-lg font-semibold mb-2 flex items-center">
+                        <i class="fa fa-th mr-2"></i>你的手牌
+                    </h3>
+                    <div id="player-hand" class="flex gap-3 overflow-x-auto py-2 min-h-[220px]">
+                        <!-- 手牌将在这里显示 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 游戏开始界面 -->
+        <div id="start-screen" class="text-center mt-16 slide-in">
+            <div class="mb-8">
+                <img src="https://p3-flow-imagex-sign.byteimg.com/tos-cn-i-a9rns2rl98/rc/pc/code_assistant/93a499b91f954dfe9cc9b2a0aa19c552~tplv-a9rns2rl98-image.image?rcl=20251011151335CE1E367C7BE2DFFBC856&amp;rk3s=8e244e95&amp;rrcfp=2609e108&amp;x-expires=1760771620&amp;x-signature=I68t9nKe6PKKJuVV3xQ0djx7LME%3D" alt="卡牌游戏封面" class="rounded-lg shadow-lg mx-auto mb-4">
+                <h2 class="text-2xl font-bold text-gray-300">欢迎来到魔法卡牌对决</h2>
+            </div>
+            <input type="text" id="player-name" placeholder="输入你的名字" class="bg-neutral border border-gray-700 rounded-lg p-3 text-white mb-6 w-64 focus:outline-none focus:ring-2 focus:ring-primary">
+            <br>
+            <button id="start-game-btn" class="bg-primary hover:bg-primary/80 text-white font-bold py-3 px-8 rounded-lg transition text-lg btn-active flex items-center mx-auto">
+                <i class="fa fa-play mr-2"></i>开始游戏
+            </button>
+            <p class="mt-4 text-gray-400 text-sm">提示: 使用鼠标点击卡牌进行操作，点击结束回合按钮结束你的回合</p>
+        </div>
+        
+        <!-- 游戏结束界面 -->
+        <div id="game-over-screen" class="hidden text-center mt-16 slide-in">
+            <div class="mb-6">
+                <img id="winner-image" src="https://p3-flow-imagex-sign.byteimg.com/tos-cn-i-a9rns2rl98/rc/pc/code_assistant/29b554b2ce6b4a4398668225f111a285~tplv-a9rns2rl98-image.image?rcl=202510111512243A5A44110115D6CA9B26&amp;rk3s=8e244e95&amp;rrcfp=2609e108&amp;x-expires=1760771547&amp;x-signature=ZSrWQEuVMpd9Ts4F4o4qgXZmLhQ%3D" alt="胜利图片" class="rounded-lg shadow-lg mx-auto mb-4">
+                <h2 id="winner-text" class="text-3xl font-bold mb-2"></h2>
+                <p class="text-gray-400">精彩的对决！</p>
+            </div>
+            <button id="restart-game-btn" class="bg-primary hover:bg-primary/80 text-white font-bold py-3 px-8 rounded-lg transition text-lg flex items-center mx-auto">
+                <i class="fa fa-refresh mr-2"></i>再来一局
+            </button>
+        </div>
+        
+        <!-- 消息提示 -->
+        <div id="info-message" class="hidden fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white px-6 py-3 rounded-lg shadow-lg z-40">
+            <p id="info-text">游戏信息提示</p>
+        </div>
+        
+        <!-- 错误提示 -->
+        <div id="error-message" class="hidden fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-red-600 text-white px-6 py-3 rounded-lg shadow-lg z-40">
+            <p id="error-text">游戏加载失败，请刷新页面重试</p>
+        </div>
+        
+        <!-- 加载超时重试提示 -->
+        <div id="timeout-message" class="hidden fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-yellow-600 text-white px-6 py-3 rounded-lg shadow-lg z-40">
+            <p class="mr-2 inline">游戏加载较慢，是否重试？</p>
+            <button id="retry-btn" class="bg-white text-yellow-600 px-3 py-1 rounded text-sm font-bold">
+                重试
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // 游戏配置
+        const GAME_CONFIG = {
+            initialCards: 3,
+            maxHandSize: 10,
+            maxMinions: 7,
+            maxMana: 10,
+            startingHealth: 30,
+            baseAttack: 1, // 基础攻击力
+            loadingTimeout: 20000
+        };
+        
+        // 卡牌数据库
+        const CARD_DATABASE = [
+            {id: 1, name: "森林守护者", type: "minion", cost: 2, attack: 2, health: 3, description: "自然的守护者，拥有顽强的生命力", image: "https://i.postimg.cc/43zzRv12/image.png"},
+            {id: 2, name: "寒冰法师", type: "minion", cost: 3, attack: 3, health: 2, description: "擅长冰冻魔法的法师，能造成可观伤害", image: "https://i.postimg.cc/DzZ8BqMn/1.png"},
+            {id: 3, name: "皇家卫兵", type: "minion", cost: 1, attack: 1, health: 3, description: "皇家军队的卫兵，防御力强", image: "https://i.postimg.cc/FRXX7vc2/2.png"},
+            {id: 4, name: "烈焰战士", type: "minion", cost: 4, attack: 4, health: 4, description: "浑身燃烧着火焰的战士", image: "https://i.postimg.cc/tgyzTmJF/3.png"},
+            {id: 5, name: "火焰冲击", type: "spell", cost: 1, damage: 3, description: "对目标造成3点火焰伤害", image: "https://i.postimg.cc/SxGgWpwV/4.png"},
+            {id: 6, name: "闪电箭", type: "spell", cost: 2, damage: 2, description: "召唤闪电对目标造成2点伤害", image: "https://i.postimg.cc/FzsrHm52/5.png"},
+            {id: 7, name: "火球术", type: "spell", cost: 4, damage: 5, description: "强大的火球，对目标造成5点伤害", image: "https://i.postimg.cc/SxLvD9M4/6.png"},
+            {id: 8, name: "治愈术", type: "spell", cost: 2, heal: 4, description: "恢复4点生命值", image: "https://i.postimg.cc/K8Y0rWxM/7.png"},
+            {id: 9, name: "青铜短剑", type: "weapon", cost: 1, attack: 2, durability: 2, description: "普通的短剑，适合初期使用", image: "https://i.postimg.cc/prTm1KTJ/8.png"},
+            {id: 10, name: "雷霆之斧", type: "weapon", cost: 4, attack: 4, durability: 2, description: "带有闪电力量的巨斧，威力强大", image: "https://i.postimg.cc/5y6tm17s/9.png"},
+            {id: 11, name: "钢铁长剑", type: "weapon", cost: 3, attack: 3, durability: 3, description: "坚固的长剑，能多次使用", image: "https://i.postimg.cc/59T9Mhk9/10.png"},
+            {id: 12, name: "神圣法杖", type: "weapon", cost: 5, attack: 5, durability: 2, description: "蕴含神圣力量的法杖", image: "https://i.postimg.cc/150zcWMC/11.png"}
+        ];
+        
+        // 游戏状态
+        let gameState = {
+            player: {
+                name: "玩家",
+                health: GAME_CONFIG.startingHealth,
+                maxHealth: GAME_CONFIG.startingHealth,
+                baseAttack: GAME_CONFIG.baseAttack, // 基础攻击力
+                mana: 2,
+                maxMana: 2,
+                hand: [],
+                minions: [],
+                weapon: null, // 武器 {name, attack, durability, image}
+                hasAttacked: false // 是否已经攻击过
+            },
+            opponent: {
+                name: "电脑对手",
+                health: GAME_CONFIG.startingHealth,
+                maxHealth: GAME_CONFIG.startingHealth,
+                baseAttack: GAME_CONFIG.baseAttack, // 基础攻击力
+                mana: 1,
+                maxMana: 1,
+                hand: [],
+                minions: [],
+                weapon: null, // 武器
+                hasAttacked: false // 是否已经攻击过
+            },
+            isPlayerTurn: true,
+            gameOver: false,
+            winner: null,
+            turnCount: 1
+        };
+        
+        // 计算总攻击力（基础攻击 + 武器攻击）
+        function getTotalAttack(character) {
+            let total = character.baseAttack;
+            if (character.weapon) {
+                total += character.weapon.attack;
+            }
+            return total;
+        }
+        
+        // 显示信息提示
+        function showInfoMessage(text, duration = 2000) {
+            const infoEl = document.getElementById('info-message');
+            const textEl = document.getElementById('info-text');
+            
+            textEl.textContent = text;
+            infoEl.classList.remove('hidden');
+            
+            setTimeout(() => {
+                infoEl.classList.add('hidden');
+            }, duration);
+        }
+        
+        // 显示错误提示
+        function showErrorMessage(text, duration = 5000) {
+            const errorEl = document.getElementById('error-message');
+            const textEl = document.getElementById('error-text');
+            
+            textEl.textContent = text;
+            errorEl.classList.remove('hidden');
+            
+            setTimeout(() => {
+                errorEl.classList.add('hidden');
+            }, duration);
+        }
+        
+        // 从卡牌库随机抽牌
+        function drawRandomCard() {
+            const randomIndex = Math.floor(Math.random() * CARD_DATABASE.length);
+            return {...CARD_DATABASE[randomIndex]}; // 返回卡牌副本
+        }
+        
+        // 初始化玩家手牌
+        function initializeHands() {
+            // 玩家初始手牌
+            gameState.player.hand = [];
+            for (let i = 0; i < GAME_CONFIG.initialCards; i++) {
+                gameState.player.hand.push(drawRandomCard());
+            }
+            
+            // 对手初始手牌
+            gameState.opponent.hand = [];
+            for (let i = 0; i < GAME_CONFIG.initialCards; i++) {
+                gameState.opponent.hand.push(drawRandomCard());
+            }
+        }
+        
+        // 开始游戏
+        function startGame() {
+            const playerName = document.getElementById('player-name').value.trim() || "玩家";
+            gameState.player.name = playerName;
+            
+            // 重置游戏状态
+            gameState = {
+                player: {
+                    name: playerName,
+                    health: GAME_CONFIG.startingHealth,
+                    maxHealth: GAME_CONFIG.startingHealth,
+                    baseAttack: GAME_CONFIG.baseAttack,
+                    mana: 2,
+                    maxMana: 2,
+                    hand: [],
+                    minions: [],
+                    weapon: null,
+                    hasAttacked: false
+                },
+                opponent: {
+                    name: "电脑对手",
+                    health: GAME_CONFIG.startingHealth,
+                    maxHealth: GAME_CONFIG.startingHealth,
+                    baseAttack: GAME_CONFIG.baseAttack,
+                    mana: 1,
+                    maxMana: 1,
+                    hand: [],
+                    minions: [],
+                    weapon: null,
+                    hasAttacked: false
+                },
+                isPlayerTurn: true,
+                gameOver: false,
+                winner: null,
+                turnCount: 1
+            };
+            
+            // 初始化手牌
+            initializeHands();
+            
+            // 显示游戏界面
+            document.getElementById('start-screen').classList.add('hidden');
+            document.getElementById('game-container').classList.remove('hidden');
+            
+            // 更新游戏状态显示
+            updateGameDisplay();
+            
+            showInfoMessage("游戏开始！祝你好运！");
+        }
+        
+        // 重新开始游戏
+        function restartGame() {
+            document.getElementById('game-over-screen').classList.add('hidden');
+            document.getElementById('start-screen').classList.remove('hidden');
+            document.getElementById('player-name').value = '';
+            document.getElementById('game-status').textContent = "准备开始游戏...";
+        }
+        
+        // 打出卡牌
+        function playCard(index) {
+            if (!gameState.isPlayerTurn || gameState.gameOver) return;
+            
+            const card = gameState.player.hand[index];
+            if (!card) return;
+            
+            // 检查法力是否足够
+            if (card.cost > gameState.player.mana) {
+                showInfoMessage(`法力不足！需要${card.cost}点法力，当前只有${gameState.player.mana}点`);
+                return;
+            }
+            
+            // 消耗法力
+            gameState.player.mana -= card.cost;
+            
+            // 处理不同类型的卡牌
+            if (card.type === 'minion') {
+                // 随从牌
+                if (gameState.player.minions.length < GAME_CONFIG.maxMinions) {
+                    gameState.player.minions.push({
+                        ...card,
+                        hasAttacked: false
+                    });
+                    showInfoMessage(`你召唤了${card.name}`);
+                } else {
+                    showInfoMessage("你的场上已经有太多随从了！");
+                    gameState.player.mana += card.cost; // 退还法力
+                    return;
+                }
+            } 
+            else if (card.type === 'spell') {
+                // 法术牌
+                if (card.damage) {
+                    // 伤害类法术
+                    gameState.opponent.health -= card.damage;
+                    if (gameState.opponent.health < 0) gameState.opponent.health = 0;
+                    
+                    // 显示伤害动画
+                    const healthText = document.getElementById('opponent-health-text');
+                    healthText.classList.add('damage');
+                    setTimeout(() => healthText.classList.remove('damage'), 500);
+                    
+                    showInfoMessage(`你使用了${card.name}，对对手造成${card.damage}点伤害`);
+                }
+                else if (card.heal) {
+                    // 治疗类法术
+                    gameState.player.health += card.heal;
+                    if (gameState.player.health > gameState.player.maxHealth) {
+                        gameState.player.health = gameState.player.maxHealth;
+                    }
+                    
+                    showInfoMessage(`你使用了${card.name}，恢复了${card.heal}点生命值`);
+                }
+            }
+            else if (card.type === 'weapon') {
+                // 武器牌 - 装备新武器会替换旧武器
+                gameState.player.weapon = {
+                    ...card
+                };
+                showInfoMessage(`你装备了${card.name}，攻击力提升${card.attack}点！`);
+            }
+            
+            // 从手牌中移除
+            gameState.player.hand.splice(index, 1);
+            
+            // 检查游戏是否结束
+            checkGameOver();
+            
+            // 更新显示
+            updateGameDisplay();
+        }
+        
+        // 随从攻击
+        function attackWithMinion(minionIndex, attackPlayer) {
+            if (!gameState.isPlayerTurn || gameState.gameOver || gameState.player.minions[minionIndex].hasAttacked) return;
+            
+            const minion = gameState.player.minions[minionIndex];
+            if (!minion) return;
+            
+            // 标记为已攻击
+            minion.hasAttacked = true;
+            
+            if (attackPlayer) {
+                // 攻击敌方英雄
+                gameState.opponent.health -= minion.attack;
+                if (gameState.opponent.health < 0) gameState.opponent.health = 0;
+                
+                // 敌方英雄反击
+                gameState.player.health -= gameState.opponent.baseAttack;
+                if (gameState.player.health < 0) gameState.player.health = 0;
+                
+                // 显示伤害动画
+                const opponentHealthText = document.getElementById('opponent-health-text');
+                opponentHealthText.classList.add('damage');
+                setTimeout(() => opponentHealthText.classList.remove('damage'), 500);
+                
+                const playerHealthText = document.getElementById('player-health-text');
+                playerHealthText.classList.add('damage');
+                setTimeout(() => playerHealthText.classList.remove('damage'), 500);
+                
+                showInfoMessage(`${minion.name}对对手造成${minion.attack}点伤害，对手反击造成${gameState.opponent.baseAttack}点伤害`);
+            } else {
+                // 攻击敌方随从
+                if (gameState.opponent.minions.length === 0) {
+                    showInfoMessage("对手没有可以攻击的随从！");
+                    minion.hasAttacked = false; // 取消攻击状态
+                    return;
+                }
+                
+                // 简化处理：攻击第一个随从
+                const targetMinion = gameState.opponent.minions[0];
+                
+                // 互相造成伤害
+                targetMinion.health -= minion.attack;
+                minion.health -= targetMinion.attack;
+                
+                showInfoMessage(`${minion.name}和${targetMinion.name}互相攻击，各受${minion.attack}和${targetMinion.attack}点伤害`);
+                
+                // 移除死亡的随从
+                if (targetMinion.health <= 0) {
+                    gameState.opponent.minions.shift();
+                    showInfoMessage(`${targetMinion.name}被消灭了！`);
+                }
+                
+                if (minion.health <= 0) {
+                    gameState.player.minions.splice(minionIndex, 1);
+                    showInfoMessage(`你的${minion.name}被消灭了！`);
+                }
+            }
+            
+            // 检查游戏是否结束
+            checkGameOver();
+            
+            // 更新显示
+            updateGameDisplay();
+        }
+        
+        // 玩家直接攻击敌方英雄
+        function playerAttackHero() {
+            if (!gameState.isPlayerTurn || gameState.gameOver || gameState.player.hasAttacked) return;
+            
+            const playerAttack = getTotalAttack(gameState.player);
+            
+            // 玩家攻击对手
+            gameState.opponent.health -= playerAttack;
+            if (gameState.opponent.health < 0) gameState.opponent.health = 0;
+            
+            // 对手反击
+            const opponentAttack = getTotalAttack(gameState.opponent);
+            gameState.player.health -= opponentAttack;
+            if (gameState.player.health < 0) gameState.player.health = 0;
+            
+            // 显示伤害动画
+            const opponentHealthText = document.getElementById('opponent-health-text');
+            opponentHealthText.classList.add('damage');
+            setTimeout(() => opponentHealthText.classList.remove('damage'), 500);
+            
+            const playerHealthText = document.getElementById('player-health-text');
+            playerHealthText.classList.add('damage');
+            setTimeout(() => playerHealthText.classList.remove('damage'), 500);
+            
+            showInfoMessage(`你对对手造成${playerAttack}点伤害，对手反击造成${opponentAttack}点伤害`);
+            
+            // 标记玩家已攻击
+            gameState.player.hasAttacked = true;
+            
+            // 武器耐久度减少
+            if (gameState.player.weapon) {
+                gameState.player.weapon.durability--;
+                if (gameState.player.weapon.durability <= 0) {
+                    showInfoMessage(`${gameState.player.weapon.name}已损坏！`);
+                    gameState.player.weapon = null;
+                }
+            }
+            
+            // 检查游戏是否结束
+            checkGameOver();
+            
+            // 更新显示
+            updateGameDisplay();
+        }
+        
+        // 玩家直接攻击敌方随从
+        function playerAttackMinion(minionIndex) {
+            if (!gameState.isPlayerTurn || gameState.gameOver || gameState.player.hasAttacked) return;
+            
+            if (minionIndex >= gameState.opponent.minions.length) return;
+            
+            const targetMinion = gameState.opponent.minions[minionIndex];
+            const playerAttack = getTotalAttack(gameState.player);
+            
+            // 玩家攻击随从
+            targetMinion.health -= playerAttack;
+            
+            // 随从反击
+            gameState.player.health -= targetMinion.attack;
+            if (gameState.player.health < 0) gameState.player.health = 0;
+            
+            // 显示伤害动画
+            const playerHealthText = document.getElementById('player-health-text');
+            playerHealthText.classList.add('damage');
+            setTimeout(() => playerHealthText.classList.remove('damage'), 500);
+            
+            showInfoMessage(`你对${targetMinion.name}造成${playerAttack}点伤害，它反击造成${targetMinion.attack}点伤害`);
+            
+            // 检查随从是否死亡
+            if (targetMinion.health <= 0) {
+                gameState.opponent.minions.splice(minionIndex, 1);
+                showInfoMessage(`${targetMinion.name}被消灭了！`);
+            }
+            
+            // 标记玩家已攻击
+            gameState.player.hasAttacked = true;
+            
+            // 武器耐久度减少
+            if (gameState.player.weapon) {
+                gameState.player.weapon.durability--;
+                if (gameState.player.weapon.durability <= 0) {
+                    showInfoMessage(`${gameState.player.weapon.name}已损坏！`);
+                    gameState.player.weapon = null;
+                }
+            }
+            
+            // 检查游戏是否结束
+            checkGameOver();
+            
+            // 更新显示
+            updateGameDisplay();
+        }
+        
+        // 结束回合
+        function endTurn() {
+            if (!gameState.isPlayerTurn || gameState.gameOver) return;
+            
+            showInfoMessage("你结束了回合");
+            gameState.isPlayerTurn = false;
+            updateGameDisplay();
+            
+            // 延迟执行电脑回合，让玩家有时间看到状态变化
+            setTimeout(computerTurn, 1000);
+        }
+        
+        // 电脑回合
+        function computerTurn() {
+            showInfoMessage("对手的回合");
+            
+            // 电脑回合开始：恢复法力，抽牌，重置攻击状态
+            gameState.opponent.maxMana = Math.min(GAME_CONFIG.maxMana, gameState.opponent.maxMana + 1);
+            gameState.opponent.mana = gameState.opponent.maxMana;
+            gameState.opponent.hasAttacked = false;
+            
+            // 电脑抽牌
+            if (gameState.opponent.hand.length < GAME_CONFIG.maxHandSize) {
+                gameState.opponent.hand.push(drawRandomCard());
+            }
+            
+            // 重置随从攻击状态
+            gameState.opponent.minions.forEach(minion => {
+                minion.hasAttacked = false;
+            });
+            
+            // 显示电脑攻击按钮（仅视觉效果）
+            document.getElementById('opponent-attack-btn').classList.remove('hidden');
+            
+            // 电脑出牌逻辑
+            computerPlayCards();
+            
+            // 延迟执行攻击，让玩家有时间看到电脑出牌
+            setTimeout(() => {
+                // 电脑攻击逻辑
+                computerAttack();
+                
+                // 隐藏电脑攻击按钮
+                document.getElementById('opponent-attack-btn').classList.add('hidden');
+                
+                // 检查游戏是否结束
+                if (checkGameOver()) {
+                    updateGameDisplay();
+                    return;
+                }
+                
+                // 电脑回合结束，回到玩家回合
+                gameState.turnCount++;
+                gameState.isPlayerTurn = true;
+                
+                // 玩家回合开始：恢复法力，抽牌，重置攻击状态
+                gameState.player.maxMana = Math.min(GAME_CONFIG.maxMana, gameState.player.maxMana + 1);
+                gameState.player.mana = gameState.player.maxMana;
+                gameState.player.hasAttacked = false;
+                
+                // 玩家抽牌
+                if (gameState.player.hand.length < GAME_CONFIG.maxHandSize) {
+                    gameState.player.hand.push(drawRandomCard());
+                    showInfoMessage("你抽了一张牌");
+                } else {
+                    showInfoMessage("你的手牌已满，无法抽牌");
+                }
+                
+                // 重置随从攻击状态
+                gameState.player.minions.forEach(minion => {
+                    minion.hasAttacked = false;
+                });
+                
+                // 更新显示
+                updateGameDisplay();
+                showInfoMessage("轮到你了");
+            }, 2000);
+        }
+        
+        // 电脑出牌逻辑
+        function computerPlayCards() {
+            // 简单AI：尽可能打出所有能打的牌
+            for (let i = 0; i < gameState.opponent.hand.length; i++) {
+                const card = gameState.opponent.hand[i];
+                
+                if (card.cost <= gameState.opponent.mana) {
+                    // 消耗法力
+                    gameState.opponent.mana -= card.cost;
+                    
+                    if (card.type === 'minion' && gameState.opponent.minions.length < GAME_CONFIG.maxMinions) {
+                        gameState.opponent.minions.push({
+                            ...card,
+                            hasAttacked: false
+                        });
+                        showInfoMessage(`对手召唤了${card.name}`);
+                        
+                        // 从手牌移除
+                        gameState.opponent.hand.splice(i, 1);
+                        i--; // 调整索引
+                    }
+                    else if (card.type === 'spell' && card.damage) {
+                        // 伤害类法术攻击玩家
+                        gameState.player.health -= card.damage;
+                        if (gameState.player.health < 0) gameState.player.health = 0;
+                        
+                        // 显示伤害动画
+                        const healthText = document.getElementById('player-health-text');
+                        healthText.classList.add('damage');
+                        setTimeout(() => healthText.classList.remove('damage'), 500);
+                        
+                        showInfoMessage(`对手使用了${card.name}，对你造成${card.damage}点伤害`);
+                        
+                        // 从手牌移除
+                        gameState.opponent.hand.splice(i, 1);
+                        i--; // 调整索引
+                    }
+                    else if (card.type === 'weapon') {
+                        // 装备武器，替换旧武器
+                        gameState.opponent.weapon = { ...card };
+                        showInfoMessage(`对手装备了${card.name}`);
+                        
+                        // 从手牌移除
+                        gameState.opponent.hand.splice(i, 1);
+                        i--; // 调整索引
+                    }
+                }
+            }
+            
+            updateGameDisplay();
+        }
+        
+        // 电脑攻击逻辑
+        function computerAttack() {
+            if (gameState.opponent.hasAttacked) return;
+            
+            // 简单AI：优先攻击玩家，如果有随从则先攻击随从
+            if (gameState.player.minions.length > 0) {
+                // 攻击玩家的第一个随从
+                const targetMinion = gameState.player.minions[0];
+                const opponentAttack = getTotalAttack(gameState.opponent);
+                
+                // 攻击随从
+                targetMinion.health -= opponentAttack;
+                
+                // 随从反击
+                gameState.opponent.health -= targetMinion.attack;
+                if (gameState.opponent.health < 0) gameState.opponent.health = 0;
+                
+                // 显示伤害动画
+                const opponentHealthText = document.getElementById('opponent-health-text');
+                opponentHealthText.classList.add('damage');
+                setTimeout(() => opponentHealthText.classList.remove('damage'), 500);
+                
+                showInfoMessage(`对手攻击了你的${targetMinion.name}，造成${opponentAttack}点伤害，它反击造成${targetMinion.attack}点伤害`);
+                
+                // 检查随从是否死亡
+                if (targetMinion.health <= 0) {
+                    gameState.player.minions.shift();
+                    showInfoMessage(`你的${targetMinion.name}被消灭了！`);
+                }
+            } else {
+                // 直接攻击玩家
+                const opponentAttack = getTotalAttack(gameState.opponent);
+                
+                // 对手攻击玩家
+                gameState.player.health -= opponentAttack;
+                if (gameState.player.health < 0) gameState.player.health = 0;
+                
+                // 玩家反击
+                const playerAttack = getTotalAttack(gameState.player);
+                gameState.opponent.health -= playerAttack;
+                if (gameState.opponent.health < 0) gameState.opponent.health = 0;
+                
+                // 显示伤害动画
+                const playerHealthText = document.getElementById('player-health-text');
+                playerHealthText.classList.add('damage');
+                setTimeout(() => playerHealthText.classList.remove('damage'), 500);
+                
+                const opponentHealthText = document.getElementById('opponent-health-text');
+                opponentHealthText.classList.add('damage');
+                setTimeout(() => opponentHealthText.classList.remove('damage'), 500);
+                
+                showInfoMessage(`对手对你造成${opponentAttack}点伤害，你反击造成${playerAttack}点伤害`);
+            }
+            
+            // 标记对手已攻击
+            gameState.opponent.hasAttacked = true;
+            
+            // 武器耐久度减少
+            if (gameState.opponent.weapon) {
+                gameState.opponent.weapon.durability--;
+                if (gameState.opponent.weapon.durability <= 0) {
+                    showInfoMessage(`对手的${gameState.opponent.weapon.name}已损坏！`);
+                    gameState.opponent.weapon = null;
+                }
+            }
+            
+            updateGameDisplay();
+        }
+        
+        // 检查游戏是否结束
+        function checkGameOver() {
+            if (gameState.player.health <= 0) {
+                gameState.gameOver = true;
+                gameState.winner = gameState.opponent.name;
+                endGame();
+                return true;
+            } else if (gameState.opponent.health <= 0) {
+                gameState.gameOver = true;
+                gameState.winner = gameState.player.name;
+                endGame();
+                return true;
+            }
+            return false;
+        }
+        
+        // 游戏结束处理
+        function endGame() {
+            document.getElementById('game-container').classList.add('hidden');
+            document.getElementById('game-over-screen').classList.remove('hidden');
+            
+            const winnerText = document.getElementById('winner-text');
+            const winnerImage = document.getElementById('winner-image');
+            
+            winnerText.textContent = `${gameState.winner} 获胜！`;
+            
+            // 根据胜负显示不同图片
+            if (gameState.winner === gameState.player.name) {
+                winnerImage.src = "https://picsum.photos/400/200?random=3";
+                winnerImage.alt = "胜利图片";
+            } else {
+                winnerImage.src = "https://picsum.photos/400/200?random=4";
+                winnerImage.alt = "失败图片";
+            }
+        }
+        
+        // 更新玩家状态显示
+        function updatePlayerDisplay() {
+            // 更新攻击力
+            const totalAttack = getTotalAttack(gameState.player);
+            document.getElementById('player-attack').textContent = gameState.player.baseAttack;
+            
+            // 显示武器攻击加成
+            const weaponAttackEl = document.getElementById('player-weapon-attack');
+            if (gameState.player.weapon) {
+                weaponAttackEl.textContent = `+${gameState.player.weapon.attack}`;
+                weaponAttackEl.style.display = 'inline';
+            } else {
+                weaponAttackEl.style.display = 'none';
+            }
+            
+            // 更新生命值
+            const playerHealthPercent = (gameState.player.health / gameState.player.maxHealth) * 100;
+            document.getElementById('player-health').style.width = `${playerHealthPercent}%`;
+            document.getElementById('player-health-text').textContent = 
+                `${gameState.player.health}/${gameState.player.maxHealth}`;
+            
+            // 更新法力值
+            document.getElementById('player-mana').textContent = 
+                `${gameState.player.mana}/${gameState.player.maxMana}`;
+            
+            // 更新回合指示器
+            document.getElementById('player-turn-indicator').textContent = 
+                gameState.isPlayerTurn ? "你的回合" : "等待对手...";
+                
+            // 更新武器显示
+            const playerWeaponEl = document.getElementById('player-weapon');
+            if (gameState.player.weapon) {
+                playerWeaponEl.classList.remove('hidden');
+                playerWeaponEl.classList.add('flex');
+                document.getElementById('player-weapon-name').textContent = gameState.player.weapon.name;
+                document.getElementById('player-weapon-durability').textContent = gameState.player.weapon.durability;
+            } else {
+                playerWeaponEl.classList.add('hidden');
+                playerWeaponEl.classList.remove('flex');
+            }
+            
+            // 更新攻击按钮状态
+            document.getElementById('player-attack-hero-btn').disabled = !gameState.isPlayerTurn || gameState.gameOver || gameState.player.hasAttacked;
+            if (document.getElementById('player-attack-hero-btn').disabled) {
+                document.getElementById('player-attack-hero-btn').classList.add('opacity-50', 'cursor-not-allowed');
+            } else {
+                document.getElementById('player-attack-hero-btn').classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+        }
+        
+        // 更新对手状态显示
+        function updateOpponentDisplay() {
+            // 更新攻击力
+            const totalAttack = getTotalAttack(gameState.opponent);
+            document.getElementById('opponent-attack').textContent = gameState.opponent.baseAttack;
+            
+            // 显示武器攻击加成
+            const weaponAttackEl = document.getElementById('opponent-weapon-attack');
+            if (gameState.opponent.weapon) {
+                weaponAttackEl.textContent = `+${gameState.opponent.weapon.attack}`;
+                weaponAttackEl.style.display = 'inline';
+            } else {
+                weaponAttackEl.style.display = 'none';
+            }
+            
+            // 更新生命值
+            const opponentHealthPercent = (gameState.opponent.health / gameState.opponent.maxHealth) * 100;
+            document.getElementById('opponent-health').style.width = `${opponentHealthPercent}%`;
+            document.getElementById('opponent-health-text').textContent = 
+                `${gameState.opponent.health}/${gameState.opponent.maxHealth}`;
+                
+            // 更新武器显示
+            const opponentWeaponEl = document.getElementById('opponent-weapon');
+            if (gameState.opponent.weapon) {
+                opponentWeaponEl.classList.remove('hidden');
+                opponentWeaponEl.classList.add('flex');
+                document.getElementById('opponent-weapon-name').textContent = gameState.opponent.weapon.name;
+                document.getElementById('opponent-weapon-durability').textContent = gameState.opponent.weapon.durability;
+            } else {
+                opponentWeaponEl.classList.add('hidden');
+                opponentWeaponEl.classList.remove('flex');
+            }
+        }
+        
+        // 更新玩家随从显示
+        function updatePlayerMinions() {
+            const container = document.getElementById('player-minions');
+            container.innerHTML = '';
+            
+            if (gameState.player.minions.length === 0) {
+                container.innerHTML = '<div class="text-gray-500 flex items-center"><i class="fa fa-meh-o mr-2"></i>你的场上暂无随从</div>';
+                return;
+            }
+            
+            gameState.player.minions.forEach((minion, index) => {
+                const minionCard = document.createElement('div');
+                minionCard.className = `bg-card rounded-lg p-3 card-shadow min-w-[150px] slide-in ${minion.hasAttacked ? 'opacity-70' : ''}`;
+                minionCard.style.animationDelay = `${index * 0.1}s`;
+                
+                let attackBtnHtml = '';
+                if (gameState.isPlayerTurn && !minion.hasAttacked) {
+                    attackBtnHtml = `
+                        <button class="mt-2 bg-primary/20 hover:bg-primary/30 text-primary text-xs rounded px-2 w-full" 
+                                onclick="attackWithMinion(${index}, false)">
+                            攻击随从
+                        </button>
+                        <button class="mt-1 bg-secondary/20 hover:bg-secondary/30 text-secondary text-xs rounded px-2 w-full"
+                                onclick="attackWithMinion(${index}, true)">
+                            攻击玩家
+                        </button>
+                    `;
+                }
+                
+                minionCard.innerHTML = `
+                    <div class="card-image-container mb-1">
+                        <img src="${minion.image}" alt="${minion.name}" class="card-image w-full h-32 object-cover">
+                    </div>
+                    <div class="font-bold text-center text-sm mb-1">${minion.name}</div>
+                    <div class="text-xs text-gray-300 mb-1">攻击: ${minion.attack}</div>
+                    <div class="text-xs text-gray-300 mb-1">生命: ${minion.health}</div>
+                    ${attackBtnHtml}
+                    ${minion.hasAttacked ? '<div class="text-xs text-gray-500 mt-1">已攻击</div>' : ''}
+                `;
+                
+                container.appendChild(minionCard);
+            });
+        }
+        
+        // 更新对手随从显示
+        function updateOpponentMinions() {
+            const container = document.getElementById('opponent-minions');
+            container.innerHTML = '';
+            
+            if (gameState.opponent.minions.length === 0) {
+                container.innerHTML = '<div class="text-gray-500 flex items-center"><i class="fa fa-meh-o mr-2"></i>对手场上暂无随从</div>';
+                return;
+            }
+            
+            gameState.opponent.minions.forEach((minion, index) => {
+                const minionCard = document.createElement('div');
+                minionCard.className = `bg-card rounded-lg p-3 card-shadow min-w-[150px] slide-in ${minion.hasAttacked ? 'opacity-70' : ''}`;
+                minionCard.style.animationDelay = `${index * 0.1}s`;
+                
+                // 玩家可以攻击对手的随从
+                let attackBtnHtml = '';
+                if (gameState.isPlayerTurn && !gameState.player.hasAttacked) {
+                    attackBtnHtml = `
+                        <button class="mt-2 bg-secondary/20 hover:bg-secondary/30 text-secondary text-xs rounded px-2 w-full"
+                                onclick="playerAttackMinion(${index})">
+                            攻击此随从
+                        </button>
+                    `;
+                }
+                
+                minionCard.innerHTML = `
+                    <div class="card-image-container mb-1">
+                        <img src="${minion.image}" alt="${minion.name}" class="card-image w-full h-32 object-cover">
+                    </div>
+                    <div class="font-bold text-center text-sm mb-1">${minion.name}</div>
+                    <div class="text-xs text-gray-300 mb-1">攻击: ${minion.attack}</div>
+                    <div class="text-xs text-gray-300 mb-1">生命: ${minion.health}</div>
+                    ${attackBtnHtml}
+                    ${minion.hasAttacked ? '<div class="text-xs text-gray-500 mt-1">已攻击</div>' : ''}
+                `;
+                
+                container.appendChild(minionCard);
+            });
+        }
+        
+        // 更新玩家手牌显示
+        function updatePlayerHand() {
+            const container = document.getElementById('player-hand');
+            container.innerHTML = '';
+            
+            if (gameState.player.hand.length === 0) {
+                container.innerHTML = '<div class="text-gray-500 flex items-center"><i class="fa fa-meh-o mr-2"></i>你的手牌为空</div>';
+                return;
+            }
+            
+            gameState.player.hand.forEach((card, index) => {
+                const cardElement = document.createElement('div');
+                const isPlayable = card.cost <= gameState.player.mana && gameState.isPlayerTurn;
+                
+                cardElement.className = `rounded-lg p-3 card-shadow min-w-[200px] slide-in ${
+                    isPlayable ? 'bg-card card-hover cursor-pointer' : 'bg-gray-700/50 opacity-70'
+                }`;
+                cardElement.style.animationDelay = `${index * 0.1}s`;
+                
+                let cardDetails = '';
+                if (card.type === 'minion') {
+                    cardDetails = `<div class="text-xs text-gray-300">随从 | 攻击: ${card.attack} | 生命: ${card.health}</div>`;
+                } else if (card.type === 'spell') {
+                    if (card.damage) {
+                        cardDetails = `<div class="text-xs text-gray-300">法术 | 伤害: ${card.damage}</div>`;
+                    } else if (card.heal) {
+                        cardDetails = `<div class="text-xs text-gray-300">法术 | 治疗: ${card.heal}</div>`;
+                    }
+                } else if (card.type === 'weapon') {
+                    cardDetails = `<div class="text-xs text-gray-300">武器 | 攻击+${card.attack} | 耐久: ${card.durability}</div>`;
+                }
+                
+                cardElement.innerHTML = `
+                    <div class="card-image-container mb-1">
+                        <img src="${card.image}" alt="${card.name}" class="card-image w-full h-36 object-cover">
+                    </div>
+                    <div class="flex justify-between items-start mb-1">
+                        <div class="font-bold">${card.name}</div>
+                        <div class="bg-primary/30 text-primary text-xs px-2 py-0.5 rounded">${card.cost}</div>
+                    </div>
+                    <div class="text-xs text-gray-400 mb-2">${card.description}</div>
+                    ${cardDetails}
+                    ${!isPlayable && gameState.isPlayerTurn ? '<div class="text-xs text-red-400 mt-1">法力不足</div>' : ''}
+                `;
+                
+                if (isPlayable) {
+                    cardElement.onclick = () => playCard(index);
+                }
+                
+                container.appendChild(cardElement);
+            });
+        }
+        
+        // 更新游戏状态文本
+        function updateGameStatus() {
+            const statusEl = document.getElementById('game-status');
+            if (gameState.gameOver) {
+                statusEl.textContent = `${gameState.winner} 获胜！`;
+            } else {
+                statusEl.textContent = gameState.isPlayerTurn ? 
+                    `你的回合 (第${gameState.turnCount}回合)` : 
+                    `对手的回合 (第${gameState.turnCount}回合)`;
+            }
+        }
+        
+        // 更新整个游戏显示
+        function updateGameDisplay() {
+            updateGameStatus();
+            updatePlayerDisplay();
+            updateOpponentDisplay();
+            updatePlayerMinions();
+            updateOpponentMinions();
+            updatePlayerHand();
+        }
+        
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            // 绑定UI事件
+            document.getElementById('start-game-btn').addEventListener('click', startGame);
+            document.getElementById('restart-game-btn').addEventListener('click', restartGame);
+            document.getElementById('end-turn-btn').addEventListener('click', endTurn);
+            document.getElementById('player-attack-hero-btn').addEventListener('click', playerAttackHero);
+            document.getElementById('retry-btn').addEventListener('click', function() {
+                document.getElementById('timeout-message').classList.add('hidden');
+                showInfoMessage("重新加载游戏...");
+                setTimeout(startGame, 500);
+            });
+            
+            // 为了演示，暴露一些函数到全局
+            window.playCard = playCard;
+            window.attackWithMinion = attackWithMinion;
+            window.playerAttackMinion = playerAttackMinion;
+        });
+    </script>
+
+
+</body></html>
