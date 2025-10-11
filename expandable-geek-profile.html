@@ -1,0 +1,654 @@
+<html lang="en"><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Expandable Geek Profile Card</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    
+    <!-- 配置Tailwind自定义颜色和字体 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'neon-blue': '#00f3ff',
+                        'neon-purple': '#b200ff',
+                        'neon-pink': '#ff00c8',
+                        'dark-bg': '#0d0221',
+                        'card-bg': '#16073a',
+                    },
+                    fontFamily: {
+                        'code': ['Consolas', 'Monaco', 'monospace'],
+                    },
+                    animation: {
+                        'float': 'float 6s ease-in-out infinite',
+                        'float-slow': 'float 8s ease-in-out infinite',
+                        'float-fast': 'float 4s ease-in-out infinite',
+                        'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        'glow': 'glow 2s ease-in-out infinite alternate',
+                        'scan': 'scan 4s linear infinite',
+                        'typing': 'typing 3.5s steps(40, end)',
+                        'blink': 'blink .7s infinite',
+                        'rotate': 'rotate 15s linear infinite',
+                        'pulse-soft': 'pulse-soft 3s infinite',
+                    },
+                    keyframes: {
+                        float: {
+                            '0%, 100%': { transform: 'translateY(0) rotateY(-5deg) skewX(2deg)' },
+                            '50%': { transform: 'translateY(-10px) rotateY(-3deg) skewX(1deg)' },
+                        },
+                        glow: {
+                            '0%': { boxShadow: '0 0 5px rgba(0, 243, 255, 0.5), 0 0 10px rgba(0, 243, 255, 0.3)' },
+                            '100%': { boxShadow: '0 0 10px rgba(0, 243, 255, 0.8), 0 0 20px rgba(0, 243, 255, 0.6), 0 0 30px rgba(0, 243, 255, 0.4)' },
+                        },
+                        scan: {
+                            '0%': { transform: 'translateY(-100%)' },
+                            '100%': { transform: 'translateY(100%)' },
+                        },
+                        typing: {
+                            'from': { width: '0' },
+                            'to': { width: '100%' }
+                        },
+                        blink: {
+                            'from, to': { opacity: '1' },
+                            '50%': { opacity: '0' }
+                        },
+                        rotate: {
+                            '0%': { transform: 'rotate(0deg)' },
+                            '100%': { transform: 'rotate(360deg)' }
+                        },
+                        'pulse-soft': {
+                            '0%, 100%': { opacity: 0.3 },
+                            '50%': { opacity: 0.8 }
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .text-shadow-neon-blue {
+                text-shadow: 0 0 5px rgba(0, 243, 255, 0.7), 0 0 10px rgba(0, 243, 255, 0.5);
+            }
+            .text-shadow-neon-purple {
+                text-shadow: 0 0 5px rgba(178, 0, 255, 0.7), 0 0 10px rgba(178, 0, 255, 0.5);
+            }
+            .text-shadow-neon-pink {
+                text-shadow: 0 0 5px rgba(255, 0, 200, 0.7), 0 0 10px rgba(255, 0, 200, 0.5);
+            }
+            .border-glow-blue {
+                box-shadow: 0 0 5px rgba(0, 243, 255, 0.7), 0 0 10px rgba(0, 243, 255, 0.5), inset 0 0 5px rgba(0, 243, 255, 0.7);
+            }
+            .border-glow-purple {
+                box-shadow: 0 0 5px rgba(178, 0, 255, 0.7), 0 0 10px rgba(178, 0, 255, 0.5), inset 0 0 5px rgba(178, 0, 255, 0.7);
+            }
+            .border-glow-pink {
+                box-shadow: 0 0 5px rgba(255, 0, 200, 0.7), 0 0 10px rgba(255, 0, 200, 0.5), inset 0 0 5px rgba(255, 0, 200, 0.7);
+            }
+            .grid-bg {
+                background-size: 40px 40px;
+                background-image: 
+                    linear-gradient(to right, rgba(0, 243, 255, 0.1) 1px, transparent 1px),
+                    linear-gradient(to bottom, rgba(0, 243, 255, 0.1) 1px, transparent 1px);
+            }
+            .scanline {
+                position: absolute;
+                width: 100%;
+                height: 5px;
+                background: rgba(0, 243, 255, 0.1);
+                z-index: 1;
+            }
+            .card-transform {
+                transform: rotateY(-5deg) skewX(2deg);
+                transition: all 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            }
+            .card-expanded {
+                max-width: 768px;
+                transform: rotateY(-2deg) skewX(1deg) scale(1.02);
+            }
+            .details-container {
+                max-height: 0;
+                overflow: hidden;
+                transition: max-height 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            }
+            .details-visible {
+                max-height: 1000px;
+            }
+            .light-bar {
+                position: absolute;
+                bottom: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: linear-gradient(to top, rgba(0, 243, 255, 0.3), transparent 70%);
+                transition: height 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+                pointer-events: none;
+                z-index: 2;
+            }
+            .handle {
+                opacity: 0;
+                transform: scale(0.5);
+                transition: all 0.5s ease;
+                pointer-events: none;
+            }
+            .handle-visible {
+                opacity: 1;
+                transform: scale(1);
+                pointer-events: all;
+            }
+            .particle {
+                position: absolute;
+                pointer-events: none;
+                background-color: rgba(0, 243, 255, 0.8);
+                border-radius: 50%;
+                z-index: 100;
+            }
+            .code-block {
+                position: absolute;
+                font-family: 'Consolas', 'Monaco', monospace;
+                white-space: nowrap;
+                overflow: hidden;
+                border-right: 2px solid;
+                animation: typing 3.5s steps(40, end), blink .75s step-end infinite;
+            }
+            .avatar-glow {
+                box-shadow: 0 0 15px rgba(0, 243, 255, 0.8), 0 0 30px rgba(0, 243, 255, 0.4);
+            }
+            .data-block {
+                background: rgba(22, 7, 58, 0.6);
+                backdrop-filter: blur(5px);
+                border: 1px solid rgba(0, 243, 255, 0.3);
+            }
+            .hexagon {
+                clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+            }
+            .timeline-item {
+                position: relative;
+            }
+            .timeline-item::before {
+                content: '';
+                position: absolute;
+                left: -29px;
+                top: 6px;
+                height: 12px;
+                width: 12px;
+                border-radius: 50%;
+                background: rgba(0, 243, 255, 0.8);
+                border: 2px solid #16073a;
+            }
+            .timeline-item::after {
+                content: '';
+                position: absolute;
+                left: -23px;
+                top: 18px;
+                bottom: -16px;
+                width: 1px;
+                background: rgba(0, 243, 255, 0.3);
+            }
+            .timeline-item:last-child::after {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body class="bg-dark-bg min-h-screen overflow-x-hidden font-code relative">
+    <!-- 网格背景 -->
+    <div class="grid-bg fixed inset-0 z-0"></div>
+    
+    <!-- 扫描线效果 -->
+    <div class="scanline animate-scan"></div>
+    
+    <!-- 装饰性几何图形 -->
+    <div class="fixed top-1/4 left-10 w-16 h-16 bg-neon-blue/10 hexagon border border-neon-blue/30 animate-float-slow z-0 hidden md:block"></div>
+    <div class="fixed bottom-1/3 right-16 w-20 h-20 bg-neon-purple/10 rounded-full border border-neon-purple/30 animate-float z-0 hidden md:block"></div>
+    <div class="fixed top-1/2 right-1/4 w-12 h-12 bg-neon-pink/10 hexagon border border-neon-pink/30 animate-float-fast z-0 hidden lg:block"></div>
+    
+    <!-- 数据装饰块 -->
+    <div class="fixed top-20 left-1/4 max-w-xs p-3 data-block rounded text-xs text-neon-blue animate-float-slow z-0 hidden lg:block">
+        <div class="flex justify-between items-center mb-1">
+            <span>SYSTEM_STATUS</span>
+            <span class="text-green-400">OPERATIONAL</span>
+        </div>
+        <div class="w-full bg-dark-bg/50 h-1.5 rounded-full overflow-hidden">
+            <div class="bg-neon-blue h-full rounded-full" style="width: 87%"></div>
+        </div>
+    </div>
+    
+    <div class="fixed bottom-20 right-1/4 max-w-xs p-3 data-block rounded text-xs text-neon-purple animate-float z-0 hidden lg:block">
+        <div class="flex justify-between items-center mb-1">
+            <span>CONNECTION_STRENGTH</span>
+            <span>94%</span>
+        </div>
+        <div class="flex gap-1">
+            <div class="w-1/5 h-2 bg-neon-purple rounded"></div>
+            <div class="w-1/5 h-2 bg-neon-purple rounded"></div>
+            <div class="w-1/5 h-2 bg-neon-purple rounded"></div>
+            <div class="w-1/5 h-2 bg-neon-purple rounded"></div>
+            <div class="w-1/5 h-2 bg-neon-purple/40 rounded"></div>
+        </div>
+    </div>
+    
+    <!-- 粒子效果容器 -->
+    <div id="particles-container" class="fixed inset-0 pointer-events-none z-10"></div>
+    
+    <!-- 随机代码片段 -->
+    <div id="code-snippets" class="fixed inset-0 pointer-events-none z-0"></div>
+    
+    <!-- 主内容区 -->
+    <div class="container mx-auto px-4 py-8 md:py-16 relative z-20 flex justify-center items-center min-h-screen">
+        <!-- 个人名牌卡片 -->
+        <div id="profile-card" class="card-transform bg-card-bg rounded-lg w-full max-w-md overflow-hidden border border-neon-blue relative animate-float cursor-pointer transition-all duration-700">
+            <!-- 霓虹光线效果 -->
+            <div id="light-bar" class="light-bar"></div>
+            
+            <!-- 卡片装饰元素 -->
+            <div class="absolute top-3 left-3 w-8 h-8 border border-neon-pink/50 rounded flex items-center justify-center text-neon-pink/70 text-xs animate-pulse-soft">
+                <i class="fa fa-lock"></i>
+            </div>
+            
+            <!-- 卡片内容 -->
+            <div id="card-content" class="p-4 md:p-6 transition-all duration-500">
+                <!-- 头像区域 -->
+                <div class="flex justify-center mb-4 md:mb-6">
+                    <div class="relative">
+                        <div class="w-20 md:w-24 h-20 md:h-24 rounded-full bg-neon-blue/20 border-2 border-neon-blue border-glow-blue flex items-center justify-center overflow-hidden avatar-glow">
+                            <img src="https://p3-flow-imagex-sign.byteimg.com/tos-cn-i-a9rns2rl98/rc/pc/code_assistant/33e0a76fd4c544a58cc5329525330c7b~tplv-a9rns2rl98-image.image?rcl=202510101509314E56BEA73D60710857E0&amp;rk3s=8e244e95&amp;rrcfp=e75484ac&amp;x-expires=1760684971&amp;x-signature=mx6mRxNN3cjrkNKoR8Y9o%2BMFrhI%3D" alt="男孩头像" class="w-full h-full object-cover rounded-full">
+                        </div>
+                        <!-- 在线状态指示器 -->
+                        <div class="absolute bottom-0 right-0 w-4 h-4 md:w-5 md:h-5 rounded-full bg-green-500 border-2 border-card-bg"></div>
+                    </div>
+                </div>
+                
+                <!-- 个人信息 -->
+                <div class="text-center mb-4 md:mb-6">
+                    <h1 class="text-white text-xl md:text-2xl font-bold mb-1 text-shadow-neon-blue">Ray</h1>
+                    <p class="text-neon-blue text-shadow-neon-blue text-sm md:text-base">15719425086 | Raylwp@163.com</p>
+                </div>
+                
+                <!-- 职位和信息 -->
+                <div class="space-y-2 md:space-y-3 mb-6 md:mb-8">
+                    <div class="flex items-center text-gray-300 text-sm md:text-base">
+                        <i class="fa fa-briefcase text-neon-blue mr-3"></i>
+                        <span>火锅兼烤匠西南区域主理人</span>
+                    </div>
+                    <div class="flex items-center text-gray-300 text-sm md:text-base">
+                        <i class="fa fa-map-marker text-neon-purple mr-3"></i>
+                        <span>Chengdu, China</span>
+                    </div>
+                    <div class="flex items-center text-gray-300 text-sm md:text-base">
+                        <i class="fa fa-calendar text-neon-pink mr-3"></i>
+                        <span>Joined: 2021 • 4+ years</span>
+                    </div>
+                </div>
+                
+                <!-- 活跃度指标 -->
+                <div class="mb-6 md:mb-8 p-3 bg-dark-bg/50 rounded border border-neon-blue/20">
+                    <h2 class="text-white text-sm md:text-base mb-3 flex items-center">
+                        <i class="fa fa-line-chart text-neon-blue mr-2"></i>Activity Metrics
+                    </h2>
+                    <div class="grid grid-cols-3 gap-2 text-center">
+                        <div>
+                            <div class="text-neon-blue font-bold text-lg">49%</div>
+                            <div class="text-gray-400 text-xs">火热</div>
+                        </div>
+                        <div>
+                            <div class="text-neon-purple font-bold text-lg">50%</div>
+                            <div class="text-gray-400 text-xs">冷酷</div>
+                        </div>
+                        <div>
+                            <div class="text-neon-pink font-bold text-lg">1%</div>
+                            <div class="text-gray-400 text-xs">幽默</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 技能标签 -->
+                <div class="mb-6 md:mb-8">
+                    <h2 class="text-white text-base md:text-lg mb-3 flex items-center">
+                        <i class="fa fa-code text-neon-blue mr-2"></i>Skills
+                    </h2>
+                    <div class="flex flex-wrap gap-2">
+                        <span class="px-2.5 py-1 bg-neon-blue/10 text-neon-blue rounded-full text-xs md:text-sm border border-neon-blue/30 hover:bg-neon-blue/20 transition-colors">超级炭烤五花技术</span>
+                        <span class="px-2.5 py-1 bg-neon-blue/10 text-neon-blue rounded-full text-xs md:text-sm border border-neon-blue/30 hover:bg-neon-blue/20 transition-colors">爆炒鱿鱼</span>
+                        <span class="px-2.5 py-1 bg-neon-blue/10 text-neon-blue rounded-full text-xs md:text-sm border border-neon-blue/30 hover:bg-neon-blue/20 transition-colors">正新鸡排煎炸技术</span>
+                        <span class="px-2.5 py-1 bg-neon-purple/10 text-neon-purple rounded-full text-xs md:text-sm border border-neon-purple/30 hover:bg-neon-purple/20 transition-colors">抽象艺术表演</span>
+                    </div>
+                </div>
+
+                <!-- 荣誉标签 -->
+                <div class="mb-6 md:mb-8">
+                    <h2 class="text-white text-base md:text-lg mb-3 flex items-center">
+                        <i class="fa fa-trophy text-neon-pink mr-2"></i>Honors
+                    </h2>
+                    <div class="flex flex-wrap gap-2">
+                        <span class="px-2.5 py-1 bg-neon-purple/10 text-neon-purple rounded-full text-xs md:text-sm border border-neon-purple/30 hover:bg-neon-purple/20 transition-colors">国家二级退堂鼓演奏选手</span>
+                        <span class="px-2.5 py-1 bg-neon-purple/10 text-neon-purple rounded-full text-xs md:text-sm border border-neon-purple/30 hover:bg-neon-purple/20 transition-colors">2026感动中国十佳人物</span>
+                        <span class="px-2.5 py-1 bg-neon-pink/10 text-neon-pink rounded-full text-xs md:text-sm border border-neon-pink/30 hover:bg-neon-pink/20 transition-colors">诺贝尔文学奖读者</span>
+                        <span class="px-2.5 py-1 bg-neon-pink/10 text-neon-pink rounded-full text-xs md:text-sm border border-neon-pink/30 hover:bg-neon-pink/20 transition-colors">QS前10不在读者</span>
+                    </div>
+                </div>
+                
+                <!-- 社交连接 -->
+                <div class="mb-4 md:mb-6">
+                    <h2 class="text-white text-base md:text-lg mb-3 flex items-center">
+                        <i class="fa fa-link text-neon-purple mr-2"></i>Connect
+                    </h2>
+                    <div class="flex justify-center gap-3 md:gap-4">
+                        <a href="#" class="w-9 h-9 md:w-10 md:h-10 rounded-full bg-neon-blue/10 flex items-center justify-center text-neon-blue border border-neon-blue/30 hover:bg-neon-blue/20 transition-all hover:scale-110">
+                            <i class="fa fa-wechat"></i>
+                        </a>
+                        <a href="#" class="w-9 h-9 md:w-10 md:h-10 rounded-full bg-neon-blue/10 flex items-center justify-center text-neon-blue border border-neon-blue/30 hover:bg-neon-blue/20 transition-all hover:scale-110">
+                            <i class="fa fa-twitter"></i>
+                        </a>
+                        <a href="#" class="w-9 h-9 md:w-10 md:h-10 rounded-full bg-neon-blue/10 flex items-center justify-center text-neon-blue border border-neon-blue/30 hover:bg-neon-blue/20 transition-all hover:scale-110">
+                            <i class="fa fa-linkedin"></i>
+                        </a>
+                        <a href="#" class="w-9 h-9 md:w-10 md:h-10 rounded-full bg-neon-blue/10 flex items-center justify-center text-neon-blue border border-neon-blue/30 hover:bg-neon-blue/20 transition-all hover:scale-110">
+                            <i class="fa fa-codepen"></i>
+                        </a>
+                    </div>
+                </div>
+                
+                <!-- 展开详情按钮 -->
+                <div class="text-center mb-2">
+                    <button id="expand-btn" class="px-4 py-2 bg-neon-blue/10 text-neon-blue rounded border border-neon-blue/30 hover:bg-neon-blue/20 transition-all text-sm flex items-center mx-auto">
+                        <span>查看详细介绍</span>
+                        <i class="fa fa-chevron-down ml-2"></i>
+                    </button>
+                </div>
+                
+                <!-- 详细介绍区域 -->
+                <div id="details-container" class="details-container mt-4 pt-4 border-t border-neon-blue/20">
+                    <!-- 个人简介 -->
+                    <div class="mb-6">
+                        <h2 class="text-white text-base md:text-lg mb-3 flex items-center">
+                            <i class="fa fa-user-circle text-neon-blue mr-2"></i>About Me
+                        </h2>
+                        <p class="text-gray-300 text-sm md:text-base leading-relaxed">
+                            资深火锅兼烤匠主理人，拥有超过10年的烧烤与火锅料理经验。擅长将传统工艺与现代创新结合，打造独特的味觉体验。西南地区烧烤行业的领军人物，曾多次受邀参加全国性美食节。
+                        </p>
+                        <p class="text-gray-300 text-sm md:text-base leading-relaxed mt-2">
+                            除了在餐饮领域的成就，我还是一位业余抽象艺术表演者，将美食创作的灵感融入艺术表现中，创造出独特的跨界艺术形式。
+                        </p>
+                    </div>
+                    
+                    <!-- 经历时间线 -->
+                    <div class="mb-6">
+                        <h2 class="text-white text-base md:text-lg mb-3 flex items-center">
+                            <i class="fa fa-history text-neon-purple mr-2"></i>Career Timeline
+                        </h2>
+                        <div class="pl-8 space-y-4">
+                            <div class="timeline-item">
+                                <div class="text-neon-blue font-bold">2010-2015</div>
+                                <div class="text-gray-300 text-sm">师从重庆火锅大师学习传统火锅技艺</div>
+                            </div>
+                            <div class="timeline-item">
+                                <div class="text-neon-blue font-bold">2015-2018</div>
+                                <div class="text-gray-300 text-sm">担任成都知名烧烤连锁店主厨</div>
+                            </div>
+                            <div class="timeline-item">
+                                <div class="text-neon-blue font-bold">2018-2021</div>
+                                <div class="text-gray-300 text-sm">创立个人烧烤品牌，在西南地区开设5家分店</div>
+                            </div>
+                            <div class="timeline-item">
+                                <div class="text-neon-blue font-bold">2021-至今</div>
+                                <div class="text-gray-300 text-sm">担任火锅兼烤匠西南区域主理人，负责品牌战略与产品创新</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 代表作品 -->
+                    <div class="mb-6">
+                        <h2 class="text-white text-base md:text-lg mb-3 flex items-center">
+                            <i class="fa fa-star text-neon-pink mr-2"></i>Signature Works
+                        </h2>
+                        <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+                            <div class="rounded overflow-hidden border border-neon-blue/30 hover:border-neon-blue transition-colors">
+                                <img src="https://p3-search.byteimg.com/obj/labis/c7e96878ccbcba3b351ae487dae3d99f" alt="秘制炭火烤肉" class="w-full h-24 object-cover">
+                                <div class="p-2 text-center text-xs text-gray-300 bg-dark-bg/60">秘制炭火烤肉</div>
+                            </div>
+                            <div class="rounded overflow-hidden border border-neon-blue/30 hover:border-neon-blue transition-colors">
+                                <img src="https://p3-search.byteimg.com/obj/pgc-image/9984907cabad41ba895a109eba7830b2" alt="麻辣牛油火锅" class="w-full h-24 object-cover">
+                                <div class="p-2 text-center text-xs text-gray-300 bg-dark-bg/60">麻辣牛油火锅</div>
+                            </div>
+                            <div class="rounded overflow-hidden border border-neon-blue/30 hover:border-neon-blue transition-colors">
+                                <img src="https://p3-search.byteimg.com/obj/labis/a4e1ab179ead6b5beaf1876d8189d073" alt="创新烤鱿鱼卷" class="w-full h-24 object-cover">
+                                <div class="p-2 text-center text-xs text-gray-300 bg-dark-bg/60">创新烤鱿鱼卷</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 联系方式 -->
+                    <div class="mb-4">
+                        <h2 class="text-white text-base md:text-lg mb-3 flex items-center">
+                            <i class="fa fa-envelope text-neon-purple mr-2"></i>Contact Information
+                        </h2>
+                        <div class="space-y-2 text-sm text-gray-300">
+                            <div class="flex items-center">
+                                <i class="fa fa-phone text-neon-blue mr-3 w-5 text-center"></i>
+                                <span>15719425086</span>
+                            </div>
+                            <div class="flex items-center">
+                                <i class="fa fa-envelope text-neon-blue mr-3 w-5 text-center"></i>
+                                <span>Raylwp@163.com</span>
+                            </div>
+                            <div class="flex items-center">
+                                <i class="fa fa-map-marker text-neon-blue mr-3 w-5 text-center"></i>
+                                <span>成都市锦江区美食街88号</span>
+                            </div>
+                            <div class="flex items-center">
+                                <i class="fa fa-clock-o text-neon-blue mr-3 w-5 text-center"></i>
+                                <span>营业时间: 11:00 - 凌晨2:00</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 底部状态 -->
+                <div class="pt-3 md:pt-4 border-t border-gray-700/50 text-xs md:text-sm text-gray-400 flex justify-between items-center">
+                    <div class="flex items-center">
+                        <span class="w-2 h-2 rounded-full bg-green-500 mr-2"></span>
+                        <span>Online</span>
+                    </div>
+                    <div>Last active: 2m ago</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 卡片展开/折叠功能
+        const profileCard = document.getElementById('profile-card');
+        const detailsContainer = document.getElementById('details-container');
+        const expandBtn = document.getElementById('expand-btn');
+        let isExpanded = false;
+        
+        expandBtn.addEventListener('click', toggleDetails);
+        
+        function toggleDetails() {
+            isExpanded = !isExpanded;
+            
+            if (isExpanded) {
+                // 展开详情
+                detailsContainer.classList.add('details-visible');
+                profileCard.classList.add('card-expanded');
+                expandBtn.innerHTML = '<span>收起详情</span><i class="fa fa-chevron-up ml-2"></i>';
+                
+                // 添加粒子爆炸效果
+                createParticles(window.innerWidth / 2, window.innerHeight / 2, 30);
+            } else {
+                // 收起详情
+                detailsContainer.classList.remove('details-visible');
+                profileCard.classList.remove('card-expanded');
+                expandBtn.innerHTML = '<span>查看详细介绍</span><i class="fa fa-chevron-down ml-2"></i>';
+            }
+        }
+        
+        // 粒子跟随效果 - 移动端优化：减少粒子数量
+        const particlesContainer = document.getElementById('particles-container');
+        let particles = [];
+        const isMobile = window.innerWidth < 768;
+        
+        document.addEventListener('mousemove', handlePointerMove);
+        document.addEventListener('touchmove', (e) => {
+            // 处理触摸事件
+            const touch = e.touches[0];
+            handlePointerMove({clientX: touch.clientX, clientY: touch.clientY});
+        }, {passive: true});
+        
+        function handlePointerMove(e) {
+            // 移动端减少粒子数量
+            const particleCount = isMobile ? 1 : 3;
+            createParticles(e.clientX, e.clientY, particleCount, true);
+            updateParticles();
+        }
+        
+        function createParticles(x, y, count, isFollower = false) {
+            for (let i = 0; i < count; i++) {
+                const particle = document.createElement('div');
+                particle.classList.add('particle');
+                
+                // 随机大小 - 移动端粒子更小
+                const size = isMobile ? Math.random() * 2 + 1 : Math.random() * 4 + 1;
+                particle.style.width = `${size}px`;
+                particle.style.height = `${size}px`;
+                
+                // 位置
+                particle.style.left = `${x}px`;
+                particle.style.top = `${y}px`;
+                
+                // 随机颜色
+                const colors = [
+                    'rgba(0, 243, 255, 0.8)',
+                    'rgba(178, 0, 255, 0.8)',
+                    'rgba(255, 0, 200, 0.8)'
+                ];
+                particle.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                
+                particlesContainer.appendChild(particle);
+                
+                // 粒子数据 - 移动端粒子速度更慢
+                const speedFactor = isMobile ? 0.5 : 1;
+                const particleData = {
+                    element: particle,
+                    x: x,
+                    y: y,
+                    size: size,
+                    speedX: (Math.random() - 0.5) * (isFollower ? 2 : 6) * speedFactor,
+                    speedY: (Math.random() - 0.5) * (isFollower ? 2 : 6) * speedFactor,
+                    life: isFollower ? 30 : 60,
+                    maxLife: isFollower ? 30 : 60
+                };
+                
+                particles.push(particleData);
+            }
+        }
+        
+        function updateParticles() {
+            // 过滤掉已死亡的粒子
+            particles = particles.filter(particle => {
+                // 更新位置
+                particle.x += particle.speedX;
+                particle.y += particle.speedY;
+                
+                // 更新生命周期
+                particle.life--;
+                
+                // 更新透明度
+                const alpha = particle.life / particle.maxLife;
+                particle.element.style.opacity = alpha;
+                
+                // 更新位置
+                particle.element.style.left = `${particle.x}px`;
+                particle.element.style.top = `${particle.y}px`;
+                
+                // 如果生命周期结束，移除元素
+                if (particle.life <= 0) {
+                    particle.element.remove();
+                    return false;
+                }
+                
+                return true;
+            });
+        }
+        
+        // 定期清理粒子
+        setInterval(updateParticles, 30);
+        
+        // 生成随机代码片段 - 移动端减少数量
+        const codeSnippetsContainer = document.getElementById('code-snippets');
+        const codeSamples = [
+            'function hackTheMatrix() { return reality.isAnIllusion(); }',
+            'const neon = { blue: 0x00f3ff, purple: 0xb200ff, pink: 0xff00c8 };',
+            'while (true) { createSomethingAwesome(); }',
+            'console.log("Geek mode activated");',
+            'class NeuralNetwork { constructor() { this.consciousness = true; } }',
+            'const quantum = new Promise((resolve) => resolve(superposition));',
+            'for (let i = 0; i < infinity; i++) { innovate(); }',
+            'import { future, tech, code } from \'cyberpunk\';',
+            'const binary = [0,1,0,1,1,0,0,1].map(b => b ? "🧠" : "💻");',
+            'async function exploreUniverse() { await findAliens(); }'
+        ];
+        
+        const codeColors = [
+            'text-neon-blue',
+            'text-neon-purple',
+            'text-neon-pink'
+        ];
+        
+        function createCodeSnippets() {
+            // 清除现有代码片段
+            codeSnippetsContainer.innerHTML = '';
+            
+            // 创建新的代码片段 - 移动端减少数量
+            const count = isMobile ? 2 : (window.innerWidth < 1024 ? 4 : 6);
+            for (let i = 0; i < count; i++) {
+                const codeBlock = document.createElement('div');
+                codeBlock.classList.add('code-block', 'text-opacity-40');
+                
+                // 随机选择代码和颜色
+                const code = codeSamples[Math.floor(Math.random() * codeSamples.length)];
+                const colorClass = codeColors[Math.floor(Math.random() * codeColors.length)];
+                codeBlock.classList.add(colorClass);
+                
+                // 设置内容
+                codeBlock.textContent = code;
+                
+                // 随机位置和大小 - 移动端字体更小
+                const left = Math.random() * 80 + 10; // 10% to 90%
+                const top = Math.random() * 80 + 10;  // 10% to 90%
+                const fontSize = isMobile ? Math.random() * 6 + 8 : Math.random() * 10 + 12; // 移动端8-14px，桌面12-22px
+                
+                codeBlock.style.left = `${left}%`;
+                codeBlock.style.top = `${top}%`;
+                codeBlock.style.fontSize = `${fontSize}px`;
+                
+                // 随机延迟动画
+                const delay = Math.random() * 5;
+                codeBlock.style.animationDelay = `${delay}s`;
+                
+                codeSnippetsContainer.appendChild(codeBlock);
+            }
+        }
+        
+        // 初始创建代码片段
+        createCodeSnippets();
+        
+        // 窗口大小改变时重新生成代码片段并更新移动状态
+        window.addEventListener('resize', () => {
+            // 更新移动状态
+            isMobile = window.innerWidth < 768;
+            createCodeSnippets();
+        });
+        
+        // 定期更新代码片段
+        setInterval(createCodeSnippets, 15000);
+    </script>
+
+
+    </body></html>
